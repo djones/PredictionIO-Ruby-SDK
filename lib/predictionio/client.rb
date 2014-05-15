@@ -121,44 +121,10 @@ module PredictionIO
 
   class Client
 
-    # Appkey can be changed on-the-fly after creation of the client.
-    attr_accessor :appkey
-
-    # Only JSON is currently supported as API response format.
-    attr_accessor :apiformat
-
-    # The UID used for recording user-to-item actions and retrieving recommendations.
-    attr_accessor :apiuid
-
-    # Raised when a user is not created after a synchronous API call.
-    class UserNotCreatedError < StandardError; end
-
-    # Raised when a user is not found after a synchronous API call.
-    class UserNotFoundError < StandardError; end
-
-    # Raised when a user is not deleted after a synchronous API call.
-    class UserNotDeletedError < StandardError; end
-
-    # Raised when an item is not created after a synchronous API call.
-    class ItemNotCreatedError < StandardError; end
-
-    # Raised when an item is not found after a synchronous API call.
-    class ItemNotFoundError < StandardError; end
-
-    # Raised when an item is not deleted after a synchronous API call.
-    class ItemNotDeletedError < StandardError; end
-
-    # Raised when ItemRec results cannot be found for a user after a synchronous API call.
-    class ItemRecNotFoundError < StandardError; end
-
-    # Raised when ItemRank results cannot be found for a user after a synchronous API call.
-    class ItemRankNotFoundError < StandardError; end
-
-    # Raised when ItemSim results cannot be found for an item after a synchronous API call.
-    class ItemSimNotFoundError < StandardError; end
-
-    # Raised when an user-to-item action is not created after a synchronous API call.
-    class U2IActionNotCreatedError < StandardError; end
+    # appkey - Appkey can be changed on-the-fly after creation of the client.
+    # apiformat - Only JSON is currently supported as API response format.
+    # apiuid - Only JSON is currently supported as API response format.
+    attr_accessor :appkey, :apiformat, :apiuid
 
     # Create a new PredictionIO client with default:
     # - 10 concurrent HTTP(S) connections (threads)
@@ -178,6 +144,7 @@ module PredictionIO
     # Returns PredictionIO's status in string.
     def get_status
       status = @http.aget(PredictionIO::AsyncRequest.new("/")).get()
+
       begin
         status.body
       rescue Exception
@@ -192,14 +159,13 @@ module PredictionIO
     #
     # See also #create_user.
     def acreate_user(uid, params = {})
-      rparams = params
-      rparams["pio_appkey"] = @appkey
-      rparams["pio_uid"] = uid
-      if params["pio_latitude"] && params["pio_longitude"]
-        rparams["pio_latlng"] = "#{params["pio_latitude"]},#{params["pio_longitude"]}"
+      params.merge!({'pio_appkey' => @appkey, 'pio_uid' => uid})
+
+      if params.has_key? 'pio_latitude' and params.has_key? 'pio_longitude'
+        params['pio_latlng'] = [params['pio_latitude'], params['pio_longitude']].join(",")
       end
 
-      @http.apost(PredictionIO::AsyncRequest.new("/users.#{@apiformat}", rparams))
+      @http.apost(PredictionIO::AsyncRequest.new("/users.#{@apiformat}", params))
     end
 
     # :category: Synchronous Methods
@@ -211,19 +177,22 @@ module PredictionIO
     # create_user(uid, params = {})
     # create_user(async_response)
     def create_user(*args)
-      uid_or_res = args[0]
-      if uid_or_res.is_a?(PredictionIO::AsyncResponse)
+      uid_or_res = args.first
+
+      if uid_or_res.is_a? PredictionIO::AsyncResponse
         response = uid_or_res.get
       else
         uid = uid_or_res
         response = acreate_user(*args).get
       end
-      unless response.is_a?(Net::HTTPCreated)
+
+      unless response.is_a? Net::HTTPCreated
         begin
           msg = response.body
         rescue Exception
           raise UserNotCreatedError, response
         end
+
         raise UserNotCreatedError, msg
       end
     end
@@ -301,12 +270,13 @@ module PredictionIO
     # delete_user(uid)
     # delete_user(async_response)
     def delete_user(uid_or_res)
-      if uid_or_res.is_a?(PredictionIO::AsyncResponse)
+      if uid_or_res.is_a? PredictionIO::AsyncResponse
         response = uid_or_res.get
       else
         response = adelete_user(uid_or_res).get
       end
-      unless response.is_a?(Net::HTTPOK)
+
+      unless response.is_a? Net::HTTPOK
         begin
           msg = response.body
         rescue Exception
@@ -323,19 +293,25 @@ module PredictionIO
     #
     # See also #create_item.
     def acreate_item(iid, itypes, params = {})
+      # TODO DUPLICATION
       rparams = params
       rparams["pio_appkey"] = @appkey
       rparams["pio_iid"] = iid
+
       begin
         rparams["pio_itypes"] = itypes.join(",")
       rescue Exception
         rparams["pio_itypes"] = itypes
       end
+
+      # TODO DUPLICATION
       if params["pio_latitude"] && params["pio_longitude"]
         rparams["pio_latlng"] = "#{params["pio_latitude"]},#{params["pio_longitude"]}"
       end
-      rparams["pio_startT"] = ((params["pio_startT"].to_r) * 1000).round(0).to_s if params["pio_startT"]
-      rparams["pio_endT"]   = ((params["pio_endT"].to_r) * 1000).round(0).to_s if params["pio_endT"]
+
+      # TODO: USE METHOD CALL?
+      rparams["pio_startT"] = ((params["pio_startT"].to_r) * 1000).round.to_s if params["pio_startT"]
+      rparams["pio_endT"]   = ((params["pio_endT"].to_r) * 1000).round.to_s if params["pio_endT"]
 
       @http.apost(PredictionIO::AsyncRequest.new("/items.#{@apiformat}", rparams))
     end
@@ -349,13 +325,15 @@ module PredictionIO
     # create_item(iid, itypes, params = {})
     # create_item(async_response)
     def create_item(*args)
-      iid_or_res = args[0]
-      if iid_or_res.is_a?(PredictionIO::AsyncResponse)
+      iid_or_res = args.first
+
+      if iid_or_res.is_a? PredictionIO::AsyncResponse
         response = iid_or_res.get
       else
         response = acreate_item(*args).get
       end
-      unless response.is_a?(Net::HTTPCreated)
+
+      unless response.is_a? Net::HTTPCreated
         begin
           msg = response.body
         rescue Exception
@@ -394,22 +372,26 @@ module PredictionIO
     # get_item(iid)
     # get_item(async_response)
     def get_item(iid_or_res)
-      if iid_or_res.is_a?(PredictionIO::AsyncResponse)
+      if iid_or_res.is_a? PredictionIO::AsyncResponse
         response = iid_or_res.get
       else
         response = aget_item(iid_or_res).get
       end
-      if response.is_a?(Net::HTTPOK)
+
+      if response.is_a? Net::HTTPOK
         res = JSON.parse(response.body)
+
         if res["pio_latlng"]
           latlng = res["pio_latlng"]
           res["pio_latitude"] = latlng[0]
           res["pio_longitude"] = latlng[1]
         end
+
         if res["pio_startT"]
           startT = Rational(res["pio_startT"], 1000)
           res["pio_startT"] = Time.at(startT)
         end
+
         if res["pio_endT"]
           endT = Rational(res["pio_endT"], 1000)
           res["pio_endT"] = Time.at(endT)
@@ -432,6 +414,7 @@ module PredictionIO
     #
     # See also #delete_item.
     def adelete_item(iid)
+      # TODO DUPLICATION on key and id
       @http.adelete(PredictionIO::AsyncRequest.new("/items/#{iid}.#{@apiformat}",
                                                    "pio_appkey" => @appkey,
                                                    "pio_iid" => iid))
@@ -446,12 +429,13 @@ module PredictionIO
     # delete_item(iid)
     # delete_item(async_response)
     def delete_item(iid_or_res)
-      if iid_or_res.is_a?(PredictionIO::AsyncResponse)
+      if iid_or_res.is_a? PredictionIO::AsyncResponse
         response = iid_or_res.get
       else
         response = adelete_item(iid_or_res).get
       end
-      unless response.is_a?(Net::HTTPOK)
+
+      unless response.is_a? Net::HTTPOK
         begin
           msg = response.body
         rescue Exception
@@ -473,10 +457,11 @@ module PredictionIO
     #
     # See also #get_itemrec_top_n.
     def aget_itemrec_top_n(engine, n, params = {})
-      rparams = Hash.new
+      rparams = {}
       rparams["pio_appkey"] = @appkey
       rparams["pio_uid"] = @apiuid
       rparams["pio_n"] = n
+
       if params["pio_itypes"]
         if params["pio_itypes"].kind_of?(Array) && params["pio_itypes"].any?
           rparams["pio_itypes"] = params["pio_itypes"].join(",")
@@ -484,9 +469,11 @@ module PredictionIO
           rparams["pio_itypes"] = params["pio_itypes"]
         end
       end
+
       if params["pio_latitude"] && params["pio_longitude"]
         rparams["pio_latlng"] = "#{params["pio_latitude"]},#{params["pio_longitude"]}"
       end
+
       rparams["pio_within"] = params["pio_within"] if params["pio_within"]
       rparams["pio_unit"] = params["pio_unit"] if params["pio_unit"]
       if params["pio_attributes"]
@@ -496,6 +483,7 @@ module PredictionIO
           rparams["pio_attributes"] = params["pio_attributes"]
         end
       end
+
       @http.aget(PredictionIO::AsyncRequest.new("/engines/itemrec/#{engine}/topn.#{@apiformat}", rparams))
     end
 
@@ -508,16 +496,19 @@ module PredictionIO
     # aget_itemrec_top_n(engine, n, params = {})
     # aget_itemrec_top_n(async_response)
     def get_itemrec_top_n(*args)
-      uid_or_res = args[0]
-      if uid_or_res.is_a?(PredictionIO::AsyncResponse)
+      uid_or_res = args.first
+
+      if uid_or_res.is_a? PredictionIO::AsyncResponse
         response = uid_or_res
       else
         response = aget_itemrec_top_n(*args)
       end
+
       http_response = response.get
-      if http_response.is_a?(Net::HTTPOK)
+      if http_response.is_a? Net::HTTPOK
         res = JSON.parse(http_response.body)
-        if response.request.params.has_key?('pio_attributes')
+
+        if response.request.params.has_key? 'pio_attributes'
           attributes = response.request.params['pio_attributes'].split(',')
           list_of_attribute_values = attributes.map { |attrib| res[attrib] }
           res["pio_iids"].zip(*list_of_attribute_values).map { |v| Hash[(['pio_iid'] + attributes).zip(v)] }
@@ -541,7 +532,7 @@ module PredictionIO
     #
     # See also #get_itemrank_ranked.
     def aget_itemrank_ranked(engine, iids, params = {})
-      rparams = Hash.new
+      rparams = {}
       rparams["pio_appkey"] = @appkey
       rparams["pio_uid"] = @apiuid
       if iids.kind_of?(Array) && iids.any?
@@ -678,6 +669,7 @@ module PredictionIO
       if params["pio_latitude"] && params["pio_longitude"]
         rparams["pio_latlng"] = "#{params["pio_latitude"]},#{params["pio_longitude"]}"
       end
+
       @http.apost(PredictionIO::AsyncRequest.new("/actions/u2i.#{@apiformat}", rparams))
     end
 
@@ -690,13 +682,15 @@ module PredictionIO
     # record_action_on_item(action, iid, params = {})
     # record_action_on_item(async_response)
     def record_action_on_item(*args)
-      action_or_res = args[0]
-      if action_or_res.is_a?(PredictionIO::AsyncResponse)
+      action_or_res = args.first
+
+      if action_or_res.is_a? PredictionIO::AsyncResponse
         response = action_or_res.get
       else
         response = arecord_action_on_item(*args).get
       end
-      unless response.is_a?(Net::HTTPCreated)
+
+      unless response.is_a? Net::HTTPCreated
         begin
           msg = response.body
         rescue Exception

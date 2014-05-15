@@ -1,7 +1,5 @@
-require 'thread'
-
 module PredictionIO
-  # This class encapsulates an asynchronous response that will block the caller until the response is available.
+  # This class encapsulates an asynchronous response that will block the calleruntil the response is available.
   class AsyncResponse
 
     # The PredictionIO::AsyncRequest instance that created the current PredictionIO::AsyncResponse instance.
@@ -11,13 +9,13 @@ module PredictionIO
     def initialize(request, response = nil)
       @request = request
       @response = Queue.new
-      set(response) if response
+      set(response) unless response.nil?
     end
 
     # Save a Net::HTTPResponse instance to the current instance.
     # This will unblock any caller that called #get.
     def set(response)
-      @response.push(response)
+      @response.push response
     end
 
     # Get the Net::HTTPResponse instance. This will block if the response is not yet available.
